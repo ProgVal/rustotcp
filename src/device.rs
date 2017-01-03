@@ -15,6 +15,7 @@ use ipv4::Ipv4;
 pub struct Device(*mut pico_device); // The pico_device is owned by the pico stack
 
 impl Device {
+    /// Returns the name of the device.
     pub fn name(&self) -> String {
         let tmp = unsafe { (*self.0).name };
         (*unsafe { CStr::from_ptr(tmp.as_ptr()) }.to_string_lossy()).to_owned()
@@ -93,6 +94,8 @@ impl Device {
     }
 
     /// `pico_ipv4_link_find`
+    ///
+    /// Returns the `Device` corresponding to the given IPv4 address.
     ///
     /// ```
     /// # use rustotcp::device::Device;

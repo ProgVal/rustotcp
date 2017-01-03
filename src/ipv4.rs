@@ -68,6 +68,7 @@ impl Ipv4 {
     }
 
     /// `pico_ipv4_valid_netmask`
+    ///
     /// Returns the netmask in CIDR notation if it is valid.
     ///
     /// ```
@@ -89,6 +90,7 @@ impl Ipv4 {
     }
 
     /// `pico_ipv4_is_unicast`
+    ///
     /// Returns whether this is a unicast address
     ///
     /// TODO: improve test/example
@@ -106,6 +108,7 @@ impl Ipv4 {
     }
 
     /// `pico_ipv4_source_find`
+    ///
     /// Returns the source IP for the link associated to this IPv4 address
     /// if the address is reachable.
     ///
