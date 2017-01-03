@@ -3,9 +3,11 @@ use std::ffi::CString;
 
 use picotcp_sys::pico_device;
 use picotcp_sys::pico_device_init;
+use picotcp_sys::pico_ipv4_link_add;
 use picotcp_sys::PICO_SIZE_ETH;
 
-use error::get_res;
+use error::{PicoError, get_res};
+use ipv4::Ipv4;
 
 pub struct Device(pico_device);
 
@@ -30,6 +32,17 @@ impl Device {
         match get_res(res) {
             Ok(_) => Device(raw),
             Err(res) => panic!(format!("Unexpected error from pico_device_init: {:?}", res)),
+        }
+    }
+
+    /// `pico_ipv4_link_add`
+    pub fn ipv4_link_add(&mut self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
+        match get_res(unsafe { pico_ipv4_link_add(&mut self.0 as *mut _, ip4.into(), netmask.into()) }) {
+            Ok(_) => Ok(()),
+            Err(e @ PicoError::NotEnoughMemory) |
+            Err(e @ PicoError::NetworkUnreachable) |
+            Err(e @PicoError::HostIsUnreachable) => Err(e),
+            Err(res) => panic!(format!("Unexpected error from pico_ipv4_link_add: {:?}", res)),
         }
     }
 }

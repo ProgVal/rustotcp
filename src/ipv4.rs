@@ -10,8 +10,7 @@ use picotcp_sys::pico_ipv4_valid_netmask;
 use picotcp_sys::pico_ipv4_is_unicast;
 use picotcp_sys::pico_ipv4_source_find;
 
-use error::{get_res, get_res_ptr};
-use picotcp_sys::pico_err_e;
+use error::{PicoError, get_res, get_res_ptr};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Ipv4(pub u32);
@@ -22,11 +21,13 @@ impl fmt::Debug for Ipv4 {
     }
 }
 
-impl Ipv4 {
-    fn as_ip4(self) -> pico_ip4 {
+impl Into<pico_ip4> for Ipv4 {
+    fn into(self) -> pico_ip4 {
         pico_ip4 { addr: self.0 }
     }
+}
 
+impl Ipv4 {
     fn to_cstring(self: Ipv4) -> CString {
         let ipbuf = CString::new("255.255.255.255").unwrap().into_raw();
         match get_res(unsafe { pico_ipv4_to_string(ipbuf, self.0) }) {
@@ -50,7 +51,7 @@ impl Ipv4 {
         let res = unsafe { pico_string_to_ipv4(ipstr.as_ptr(), &mut ip as *mut u32) };
         match get_res(res) {
             Ok(_) => Ok(Ipv4(ip)),
-            Err(pico_err_e::PICO_ERR_EINVAL) => Err(()),
+            Err(PicoError::InvalidArgument) => Err(()),
             Err(res) => panic!(format!("Unexpected error from pico_string_to_ipv4: {:?}", res)),
         }
     }
@@ -82,7 +83,7 @@ impl Ipv4 {
                 assert!(cidr_notation <= 32);
                 Ok(cidr_notation as u8)
             },
-            Err(pico_err_e::PICO_ERR_EINVAL) => Err(()),
+            Err(PicoError::InvalidArgument) => Err(()),
             Err(res) => panic!(format!("Unexpected error from pico_ipv4_valid_netmask: {:?}", res)),
         }
     }
@@ -115,13 +116,13 @@ impl Ipv4 {
     /// assert_eq!(Ipv4::from_string("10.10.10.0").unwrap().find_source(), None);
     /// ```
     pub fn find_source(self) -> Option<Ipv4> {
-        match get_res_ptr(unsafe { pico_ipv4_source_find(&self.as_ip4() as *const _) }) {
+        match get_res_ptr(unsafe { pico_ipv4_source_find(&self.into() as *const _) }) {
             Ok(source_ptr) => {
                 let source = unsafe { *source_ptr }.addr;
                 unsafe { libc::free(source_ptr as *mut _) };
                 Some(Ipv4(source))
             }
-            Err(pico_err_e::PICO_ERR_EHOSTUNREACH) => None,
+            Err(PicoError::HostIsUnreachable) => None,
             Err(res) => panic!(format!("Unexpected error from pico_ipv4_source_find: {:?}", res)),
         }
     }
