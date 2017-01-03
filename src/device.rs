@@ -115,14 +115,3 @@ impl Device {
         }
     }
 }
-
-/*
-#[test]
-fn test() {
-    super::init().unwrap();
-    super::tick();
-    let mut eth0 = Device::new("eth0", Some([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
-    println!("foo");
-    super::tick();
-    println!("bar");
-}*/
