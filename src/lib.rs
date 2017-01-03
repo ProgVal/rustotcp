@@ -1,6 +1,6 @@
 extern crate picotcp_sys;
 
-mod utils;
+pub mod error;
 pub mod ipv4;
 
 #[cfg(test)]
