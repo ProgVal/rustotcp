@@ -2,6 +2,7 @@ extern crate picotcp_sys;
 extern crate libc;
 
 use picotcp_sys::pico_stack_init;
+use picotcp_sys::pico_stack_tick;
 
 pub mod error;
 pub mod device;
@@ -14,6 +15,10 @@ pub fn init() -> Result<(), ()> {
         -1 => Err(()),
         res => panic!(format!("Unexpected result from pico_stack_init: {:?}", res)),
     }
+}
+
+pub fn tick()  {
+    unsafe { pico_stack_tick() }
 }
 
 #[cfg(test)]
