@@ -36,6 +36,14 @@ impl Device {
     }
 
     /// `pico_ipv4_link_add`
+    ///
+    /// ```
+    /// # use rustotcp::device::Device;
+    /// use rustotcp::ipv4::Ipv4;
+    /// rustotcp::init();
+    /// let mut dev = Device::new("eth0", None);
+    /// dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap());
+    /// ```
     pub fn ipv4_link_add(&mut self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
         match get_res(unsafe { pico_ipv4_link_add(&mut self.0 as *mut _, ip4.into(), netmask.into()) }) {
             Ok(_) => Ok(()),
