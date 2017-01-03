@@ -2,7 +2,6 @@ extern crate libc;
 
 use std::fmt;
 use std::ffi::CString;
-use std::os::raw::c_char;
 
 use picotcp_sys::pico_ip4;
 use picotcp_sys::pico_ipv4_to_string;
@@ -46,11 +45,9 @@ impl Ipv4 {
         self.to_cstring().into_string().unwrap()
     }
 
-    fn from_cstring(s: CString) -> Result<Ipv4, ()> {
-        let ipstr = s.into_raw();
+    fn from_cstring(ipstr: CString) -> Result<Ipv4, ()> {
         let mut ip = 0u32;
-        let res = unsafe { pico_string_to_ipv4(ipstr as *const c_char, &mut ip as *mut u32) };
-        let _s = unsafe { CString::from_raw(ipstr) }; // Take back ownership
+        let res = unsafe { pico_string_to_ipv4(ipstr.as_ptr(), &mut ip as *mut u32) };
         match get_res(res) {
             Ok(_) => Ok(Ipv4(ip)),
             Err(pico_err_e::PICO_ERR_EINVAL) => Err(()),
