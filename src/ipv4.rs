@@ -1,13 +1,18 @@
+extern crate libc;
+
 use std::fmt;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
+use picotcp_sys::pico_ip4;
 use picotcp_sys::pico_ipv4_to_string;
 use picotcp_sys::pico_string_to_ipv4;
 use picotcp_sys::pico_ipv4_valid_netmask;
+use picotcp_sys::pico_ipv4_is_unicast;
+use picotcp_sys::pico_ipv4_source_find;
 
-use error::get_res;
-use error::PicoError;
+use error::{get_res, get_res_ptr};
+use picotcp_sys::pico_err_e;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Ipv4(pub u32);
@@ -19,6 +24,10 @@ impl fmt::Debug for Ipv4 {
 }
 
 impl Ipv4 {
+    fn as_ip4(self) -> pico_ip4 {
+        pico_ip4 { addr: self.0 }
+    }
+
     fn to_cstring(self: Ipv4) -> CString {
         let ipbuf = CString::new("255.255.255.255").unwrap().into_raw();
         match get_res(unsafe { pico_ipv4_to_string(ipbuf, self.0) }) {
@@ -44,7 +53,7 @@ impl Ipv4 {
         let _s = unsafe { CString::from_raw(ipstr) }; // Take back ownership
         match get_res(res) {
             Ok(_) => Ok(Ipv4(ip)),
-            Err(PicoError::PICO_ERR_EINVAL) => Err(()),
+            Err(pico_err_e::PICO_ERR_EINVAL) => Err(()),
             Err(res) => panic!(format!("Unexpected error from pico_string_to_ipv4: {:?}", res)),
         }
     }
@@ -76,8 +85,47 @@ impl Ipv4 {
                 assert!(cidr_notation <= 32);
                 Ok(cidr_notation as u8)
             },
-            Err(PicoError::PICO_ERR_EINVAL) => Err(()),
-            Err(res) => panic!(format!("Unexpected error from pico_string_to_ipv4: {:?}", res)),
+            Err(pico_err_e::PICO_ERR_EINVAL) => Err(()),
+            Err(res) => panic!(format!("Unexpected error from pico_ipv4_valid_netmask: {:?}", res)),
+        }
+    }
+
+    /// `pico_ipv4_is_unicast`
+    /// Returns whether this is a unicast address
+    ///
+    /// TODO: improve test/example
+    ///
+    /// ```
+    /// # use rustotcp::ipv4::Ipv4;
+    /// assert_eq!(Ipv4::from_string("10.10.10.0").unwrap().is_unicast(), true);
+    /// ```
+    pub fn is_unicast(self) -> bool {
+        match get_res(unsafe { pico_ipv4_is_unicast(self.0) }) {
+            Ok(0) => false,
+            Ok(1) => true,
+            res => panic!(format!("Unexpected result from pico_ipv4_is_unicast: {:?}", res)),
+        }
+    }
+
+    /// `pico_ipv4_source_find`
+    /// Returns the source IP for the link associated to this IPv4 address
+    /// if the address is reachable.
+    ///
+    /// TODO: add test/example of working case
+    ///
+    /// ```
+    /// # use rustotcp::ipv4::Ipv4;
+    /// assert_eq!(Ipv4::from_string("10.10.10.0").unwrap().find_source(), None);
+    /// ```
+    pub fn find_source(self) -> Option<Ipv4> {
+        match get_res_ptr(unsafe { pico_ipv4_source_find(&self.as_ip4() as *const _) }) {
+            Ok(source_ptr) => {
+                let source = unsafe { *source_ptr }.addr;
+                unsafe { libc::free(source_ptr as *mut _) };
+                Some(Ipv4(source))
+            }
+            Err(pico_err_e::PICO_ERR_EHOSTUNREACH) => None,
+            Err(res) => panic!(format!("Unexpected error from pico_ipv4_source_find: {:?}", res)),
         }
     }
 }

@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["Valentin Lorentz <progval+git@progval.net>"]
 
 [dependencies]
+libc = "0.2.18"
 picotcp-sys = { git = "https://github.com/ProgVal/picotcp-sys.git" }
