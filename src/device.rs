@@ -24,7 +24,7 @@ impl Device {
     /// `pico_device_init` (not documented upstream)
     ///
     /// ```
-    /// # use rustotcp::device::Device;
+    /// # use rustotcp::Device;
     /// rustotcp::init().unwrap();
     /// Device::new("eth0", None);
     /// Device::new("eth0", Some([0x00, 0x11, 0x22, 0x33, 0x44, 0x54]));
@@ -48,8 +48,8 @@ impl Device {
     /// `pico_ipv4_link_add`
     ///
     /// ```
-    /// # use rustotcp::device::Device;
-    /// use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Device;
+    /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
     /// let mut dev = Device::new("eth0", None);
     /// assert_eq!(dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()), Ok(()));
@@ -68,8 +68,8 @@ impl Device {
     /// `pico_ipv4_link_del`
     ///
     /// ```
-    /// # use rustotcp::device::Device;
-    /// use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Device;
+    /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
     /// let mut dev = Device::new("eth0", None);
     /// dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
@@ -77,9 +77,9 @@ impl Device {
     /// ```
     ///
     /// ```
-    /// # use rustotcp::device::Device;
-    /// use rustotcp::error::PicoError;
-    /// use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Device;
+    /// use rustotcp::PicoError;
+    /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
     /// let mut dev = Device::new("eth0", None);
     /// dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
@@ -98,8 +98,8 @@ impl Device {
     /// Returns the `Device` corresponding to the given IPv4 address.
     ///
     /// ```
-    /// # use rustotcp::device::Device;
-    /// use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Device;
+    /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
     /// let mut eth0 = Device::new("eth0", None);
     /// let mut tun0 = Device::new("tun0", None);

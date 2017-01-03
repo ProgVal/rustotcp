@@ -39,7 +39,7 @@ impl Ipv4 {
     /// `pico_ipv4_to_string`
     ///
     /// ```
-    /// # use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Ipv4;
     /// assert_eq!(Ipv4(u32::from_be(0xC0A80101)).to_string(), "192.168.1.1");
     /// ```
     pub fn to_string(self: Ipv4) -> String {
@@ -59,7 +59,7 @@ impl Ipv4 {
     /// `pico_string_to_ipv4`
     ///
     /// ```
-    /// # use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Ipv4;
     /// assert_eq!(Ipv4::from_string("192.168.1.1"), Ok(Ipv4(u32::from_be(0xC0A80101))));
     /// assert_eq!(Ipv4::from_string("192.168.1.259"), Ok(Ipv4(u32::from_be(0xC0A80103)))); // https://github.com/tass-belgium/picotcp/issues/453
     /// ```
@@ -72,7 +72,7 @@ impl Ipv4 {
     /// Returns the netmask in CIDR notation if it is valid.
     ///
     /// ```
-    /// # use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Ipv4;
     /// assert_eq!(Ipv4::from_string("255.255.255.0").unwrap().netmask(), Ok(24));
     /// assert_eq!(Ipv4::from_string("255.128.0.0").unwrap().netmask(), Ok(9));
     /// assert_eq!(Ipv4::from_string("255.0.1.0").unwrap().netmask(), Err(()));
@@ -96,7 +96,7 @@ impl Ipv4 {
     /// TODO: improve test/example
     ///
     /// ```
-    /// # use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Ipv4;
     /// assert_eq!(Ipv4::from_string("10.10.10.0").unwrap().is_unicast(), true);
     /// ```
     pub fn is_unicast(self) -> bool {
@@ -115,7 +115,7 @@ impl Ipv4 {
     /// TODO: add test/example of working case
     ///
     /// ```
-    /// # use rustotcp::ipv4::Ipv4;
+    /// # use rustotcp::Ipv4;
     /// assert_eq!(Ipv4::from_string("10.10.10.0").unwrap().find_source(), None);
     /// ```
     pub fn find_source(self) -> Option<Ipv4> {
