@@ -51,8 +51,8 @@ impl Device {
     /// # use rustotcp::Device;
     /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
-    /// let mut dev = Device::new("eth0", None);
-    /// assert_eq!(dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()), Ok(()));
+    /// let eth0 = Device::new("eth0", None);
+    /// assert_eq!(eth0.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()), Ok(()));
     /// ```
     pub fn ipv4_link_add(&self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
         println!("{:?}", self.name());
@@ -101,8 +101,8 @@ impl Device {
     /// # use rustotcp::Device;
     /// use rustotcp::Ipv4;
     /// rustotcp::init().unwrap();
-    /// let mut eth0 = Device::new("eth0", None);
-    /// let mut tun0 = Device::new("tun0", None);
+    /// let eth0 = Device::new("eth0", None);
+    /// let tun0 = Device::new("tun0", None);
     /// eth0.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
     /// tun0.ipv4_link_add(Ipv4::from_string("10.0.0.0").unwrap(), Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
     /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("192.168.1.1").unwrap()).map(|dev| dev.name()), Some("eth0".to_owned()));
