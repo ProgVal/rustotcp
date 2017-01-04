@@ -54,7 +54,7 @@ impl Device {
     /// let mut dev = Device::new("eth0", None);
     /// assert_eq!(dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()), Ok(()));
     /// ```
-    pub fn ipv4_link_add(&mut self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
+    pub fn ipv4_link_add(&self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
         println!("{:?}", self.name());
         match get_res(unsafe { pico_ipv4_link_add(self.0, ip4.into(), netmask.into()) }) {
             Ok(_) => Ok(()),

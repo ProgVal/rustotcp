@@ -1,17 +1,23 @@
 extern crate libc;
 
 use std::fmt;
+use std::ptr;
 use std::ffi::CString;
 
 use picotcp_sys::pico_ip4;
+use picotcp_sys::pico_ipv4_link;
 use picotcp_sys::pico_ipv4_to_string;
 use picotcp_sys::pico_string_to_ipv4;
 use picotcp_sys::pico_ipv4_valid_netmask;
 use picotcp_sys::pico_ipv4_is_unicast;
 use picotcp_sys::pico_ipv4_source_find;
 use picotcp_sys::pico_ipv4_port_forward;
+use picotcp_sys::pico_ipv4_route_add;
+use picotcp_sys::pico_ipv4_route_del;
+use picotcp_sys::pico_ipv4_route_get_gateway;
 
-use error::{PicoError, get_res, get_res_ptr};
+use error::{PicoError, get_res, get_res_ptr, read_pico_err};
+use ipv4_link::Ipv4Link;
 use protocol::Protocol;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -184,7 +190,171 @@ pub fn port_forward_del(pub_addr: Ipv4, pub_port: u16, priv_addr: Ipv4, priv_por
     }
     match get_res(unsafe { pico_ipv4_port_forward(pub_addr.into(), pub_port, priv_addr.into(), priv_port, proto.into(), 0) }) {
         Ok(_) => Ok(()),
-        Err(e @ PicoError::NotEnoughMemory) | Err(e @ PicoError::NotSuccessfulTryAgain) => Err(e),
+        Err(e @ PicoError::NotEnoughMemory) |
+        Err(e @ PicoError::NotSuccessfulTryAgain) => Err(e),
         Err(res) => panic!(format!("Unexpected error from pico_ipv4_port_forward: {:?}", res)),
+    }
+}
+
+/// `pico_ipv4_route_add` for non-default routes
+///
+/// If both `gateway` and `link` are `None`, errors with `PicoError::InvalidArgument`.
+///
+/// See also: `ipv4::default_route_add`
+///
+/// ```
+/// # use rustotcp::ipv4::{route_add};
+/// use rustotcp::{init, Ipv4, Ipv4Link, Device, PicoError};
+///
+/// init().unwrap();
+///
+/// let addr = Ipv4::from_string("192.168.1.100").unwrap();
+/// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
+/// let gateway = Ipv4::from_string("192.168.1.1").unwrap();
+/// let outside_gateway = Ipv4::from_string("10.0.0.0").unwrap();
+///
+/// let eth0 = Device::new("eth0", None);
+/// eth0.ipv4_link_add(addr, netmask).unwrap();
+/// let link = Ipv4Link::get(addr).unwrap();
+///
+/// // Cannot add a route using a gateway with not route to it
+/// assert_eq!(route_add(addr, netmask, Some(outside_gateway), 10, None), Err(PicoError::HostIsUnreachable));
+///
+/// // Add a route for the network
+/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+/// ```
+pub fn route_add(address: Ipv4, netmask: Ipv4, gateway: Option<Ipv4>, metric: i32, link: Option<Ipv4Link>) -> Result<(), PicoError> {
+    if gateway.is_none() && link.is_none() {
+        return Err(PicoError::InvalidArgument);
+    }
+
+    let gateway = gateway.unwrap_or(Ipv4(0));
+    let link: *mut pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
+
+    match get_res(unsafe { pico_ipv4_route_add(address.into(), netmask.into(), gateway.into(), metric, link) }) {
+        Ok(_) => Ok(()),
+        Err(e @ PicoError::NotEnoughMemory) |
+        Err(e @ PicoError::HostIsUnreachable) |
+        Err(e @ PicoError::NetworkUnreachable) => Err(e),
+        Err(res) => panic!(format!("Unexpected error from pico_ipv4_route_add: {:?}", res)),
+    }
+}
+
+/// `pico_ipv4_route_add` for default routes
+///
+/// See also: `ipv4::route_add`
+///
+/// ```
+/// # use rustotcp::ipv4::{route_add, default_route_add};
+/// use rustotcp::{init, Ipv4, Ipv4Link, Device, PicoError};
+///
+/// init().unwrap();
+///
+/// let addr = Ipv4::from_string("192.168.1.100").unwrap();
+/// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
+/// let gateway = Ipv4::from_string("192.168.1.1").unwrap();
+/// let outside_gateway = Ipv4::from_string("10.0.0.0").unwrap();
+///
+/// let eth0 = Device::new("eth0", None);
+/// eth0.ipv4_link_add(addr, netmask).unwrap();
+/// let link = Ipv4Link::get(addr).unwrap();
+///
+/// // Add a route for the network
+/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+///
+/// // Add a default route, via the gateway
+/// default_route_add(Some(gateway), 10, Some(link)).unwrap();
+/// ```
+pub fn default_route_add(gateway: Option<Ipv4>, metric: i32, link: Option<Ipv4Link>) -> Result<(), PicoError> {
+    if gateway.is_none() && link.is_none() {
+        return Err(PicoError::InvalidArgument);
+    }
+
+    let zero_addr = pico_ip4 { addr: 0 };
+    let gateway = gateway.unwrap_or(Ipv4(0));
+    let link: *mut pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
+
+    match get_res(unsafe { pico_ipv4_route_add(zero_addr, zero_addr, gateway.into(), metric, link) }) {
+        Ok(_) => Ok(()),
+        Err(e @ PicoError::NotEnoughMemory) |
+        Err(e @ PicoError::HostIsUnreachable) |
+        Err(e @ PicoError::NetworkUnreachable) => Err(e),
+        Err(res) => panic!(format!("Unexpected error from pico_ipv4_route_add: {:?}", res)),
+    }
+}
+
+/// `pico_ipv4_route_del`
+///
+/// ```
+/// # use rustotcp::ipv4::{route_add, route_del};
+/// use rustotcp::{init, Ipv4, Ipv4Link, Device, PicoError};
+///
+/// init().unwrap();
+///
+/// let addr = Ipv4::from_string("192.168.1.100").unwrap();
+/// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
+/// let gateway = Ipv4::from_string("192.168.1.1").unwrap();
+///
+/// let eth0 = Device::new("eth0", None);
+/// eth0.ipv4_link_add(addr, netmask).unwrap();
+/// let link = Ipv4Link::get(addr).unwrap();
+///
+/// // Add a route for the network
+/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+///
+/// // Delete it
+/// route_del(addr, netmask, 10);
+/// ```
+pub fn route_del(address: Ipv4, netmask: Ipv4, metric: i32) {
+    match get_res(unsafe { pico_ipv4_route_del(address.into(), netmask.into(), metric) }) {
+        Ok(_) => {},
+        Err(res) => panic!(format!("Unexpected error from pico_ipv4_route_del: {:?}", res)),
+    }
+}
+
+/// `pico_ipv4_route_get_gateway`
+///
+/// ```
+/// # use rustotcp::ipv4::{route_add, default_route_add, route_get_gateway};
+/// use rustotcp::{init, Ipv4, Ipv4Link, Device, PicoError};
+///
+/// init().unwrap();
+///
+/// let addr = Ipv4::from_string("192.168.1.100").unwrap();
+/// let other_addr = Ipv4::from_string("192.168.1.101").unwrap();
+/// let outside_addr = Ipv4::from_string("10.10.10").unwrap();
+/// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
+/// let gateway = Ipv4::from_string("192.168.1.1").unwrap();
+///
+/// let eth0 = Device::new("eth0", None);
+/// eth0.ipv4_link_add(addr, netmask).unwrap();
+/// let link = Ipv4Link::get(addr).unwrap();
+///
+/// // Add a route for the network
+/// route_add(addr, netmask, Some(gateway), 10, Some(link)).unwrap();
+///
+/// assert_eq!(route_get_gateway(addr), Ok(None));
+/// assert_eq!(route_get_gateway(other_addr), Ok(None));
+/// assert_eq!(route_get_gateway(outside_addr), Err(PicoError::HostIsUnreachable));
+///
+/// // Add a default route, via the gateway
+/// default_route_add(Some(gateway), 10, Some(link)).unwrap();
+///
+/// assert_eq!(route_get_gateway(outside_addr), Ok(Some(gateway)));
+/// ```
+pub fn route_get_gateway(address: Ipv4) -> Result<Option<Ipv4>, PicoError> {
+    use picotcp_sys;
+    unsafe { picotcp_sys::pico_err = picotcp_sys::pico_err_e::PICO_ERR_NOERR };
+    let addr = &mut address.into();
+    let gateway = unsafe { pico_ipv4_route_get_gateway(addr) }.addr;
+    if gateway == 0 {
+        match read_pico_err() {
+            None => Ok(None), // No gateway needed
+            Some(PicoError::HostIsUnreachable) => Err(PicoError::HostIsUnreachable),
+            Some(res) => panic!(format!("Unexpected error from pico_ipv4_route_get_gateway: {:?}", res)),
+        }
+    }
+    else {
+        Ok(Some(Ipv4(gateway)))
     }
 }
