@@ -9,8 +9,10 @@ use picotcp_sys::pico_string_to_ipv4;
 use picotcp_sys::pico_ipv4_valid_netmask;
 use picotcp_sys::pico_ipv4_is_unicast;
 use picotcp_sys::pico_ipv4_source_find;
+use picotcp_sys::pico_ipv4_port_forward;
 
 use error::{PicoError, get_res, get_res_ptr};
+use protocol::Protocol;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Ipv4(pub u32);
@@ -128,5 +130,61 @@ impl Ipv4 {
             Err(PicoError::HostIsUnreachable) => None,
             Err(res) => panic!(format!("Unexpected error from pico_ipv4_source_find: {:?}", res)),
         }
+    }
+}
+
+/// `pico_ipv4_port_forward(..., 1)`
+///
+/// ```
+/// # use rustotcp::ipv4::add_port_forward;
+/// use rustotcp::{Ipv4, Device, Protocol, PicoError};
+/// rustotcp::init().unwrap();
+/// let mut eth0 = Device::new("eth0", None);
+/// let mut tun0 = Device::new("tun0", None);
+/// let addr_eth = Ipv4::from_string("192.168.1.1").unwrap();
+/// let addr_tun = Ipv4::from_string("10.0.0.0").unwrap();
+/// eth0.ipv4_link_add(addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
+/// tun0.ipv4_link_add(addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
+///
+/// add_port_forward(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
+/// assert_eq!(add_port_forward(addr_eth, 80, addr_tun, 8080, Protocol::Tcp), Err(PicoError::NotSuccessfulTryAgain));
+/// ```
+pub fn add_port_forward(pub_addr: Ipv4, pub_port: u16, priv_addr: Ipv4, priv_port: u16, proto: Protocol) -> Result<(), PicoError> {
+    match proto {
+        Protocol::Icmp4 | Protocol::Tcp | Protocol::Udp => {},
+        _ => return Err(PicoError::InvalidArgument),
+    }
+    match get_res(unsafe { pico_ipv4_port_forward(pub_addr.into(), pub_port, priv_addr.into(), priv_port, proto.into(), 1) }) {
+        Ok(_) => Ok(()),
+        Err(e @ PicoError::NotEnoughMemory) | Err(e @ PicoError::NotSuccessfulTryAgain) => Err(e),
+        Err(res) => panic!(format!("Unexpected error from pico_ipv4_port_forward: {:?}", res)),
+    }
+}
+
+/// `pico_ipv4_port_forward(..., 0)`
+///
+/// ```
+/// # use rustotcp::ipv4::{add_port_forward, del_port_forward};
+/// use rustotcp::{Ipv4, Device, Protocol};
+/// rustotcp::init().unwrap();
+/// let mut eth0 = Device::new("eth0", None);
+/// let mut tun0 = Device::new("tun0", None);
+/// let addr_eth = Ipv4::from_string("192.168.1.1").unwrap();
+/// let addr_tun = Ipv4::from_string("10.0.0.0").unwrap();
+/// eth0.ipv4_link_add(addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
+/// tun0.ipv4_link_add(addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
+///
+/// add_port_forward(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
+/// del_port_forward(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
+/// ```
+pub fn del_port_forward(pub_addr: Ipv4, pub_port: u16, priv_addr: Ipv4, priv_port: u16, proto: Protocol) -> Result<(), PicoError> {
+    match proto {
+        Protocol::Icmp4 | Protocol::Tcp | Protocol::Udp => {},
+        _ => return Err(PicoError::InvalidArgument),
+    }
+    match get_res(unsafe { pico_ipv4_port_forward(pub_addr.into(), pub_port, priv_addr.into(), priv_port, proto.into(), 0) }) {
+        Ok(_) => Ok(()),
+        Err(e @ PicoError::NotEnoughMemory) | Err(e @ PicoError::NotSuccessfulTryAgain) => Err(e),
+        Err(res) => panic!(format!("Unexpected error from pico_ipv4_port_forward: {:?}", res)),
     }
 }

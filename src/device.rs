@@ -11,7 +11,7 @@ use picotcp_sys::PICO_SIZE_ETH;
 use error::{PicoError, get_res, get_res_ptr};
 use ipv4::Ipv4;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Device(*mut pico_device); // The pico_device is owned by the pico stack
 
 impl Device {
@@ -105,7 +105,6 @@ impl Device {
     /// let mut tun0 = Device::new("tun0", None);
     /// eth0.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
     /// tun0.ipv4_link_add(Ipv4::from_string("10.0.0.0").unwrap(), Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
-    /// rustotcp::tick();
     /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("192.168.1.1").unwrap()).map(|dev| dev.name()), Some("eth0".to_owned()));
     /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("10.0.0.0").unwrap()).map(|dev| dev.name()), Some("tun0".to_owned()));
     /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("127.0.0.1").unwrap()).map(|dev| dev.name()), None);
