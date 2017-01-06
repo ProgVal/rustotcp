@@ -143,14 +143,14 @@ impl Ipv4 {
 ///
 /// ```
 /// # use rustotcp::ipv4::port_forward_add;
-/// use rustotcp::{Ipv4, Device, Protocol, PicoError};
+/// use rustotcp::{Ipv4, Ipv4Link, Device, Protocol, PicoError};
 /// rustotcp::init().unwrap();
 /// let eth0 = Device::new("eth0", None);
 /// let tun0 = Device::new("tun0", None);
 /// let addr_eth = Ipv4::from_string("192.168.1.1").unwrap();
 /// let addr_tun = Ipv4::from_string("10.0.0.0").unwrap();
-/// eth0.ipv4_link_add(addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
-/// tun0.ipv4_link_add(addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
+/// Ipv4Link::add(&eth0, addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
+/// Ipv4Link::add(&tun0, addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
 ///
 /// port_forward_add(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
 /// assert_eq!(port_forward_add(addr_eth, 80, addr_tun, 8080, Protocol::Tcp), Err(PicoError::NotSuccessfulTryAgain));
@@ -171,14 +171,14 @@ pub fn port_forward_add(pub_addr: Ipv4, pub_port: u16, priv_addr: Ipv4, priv_por
 ///
 /// ```
 /// # use rustotcp::ipv4::{port_forward_add, port_forward_del};
-/// use rustotcp::{Ipv4, Device, Protocol};
+/// use rustotcp::{Ipv4, Ipv4Link, Device, Protocol};
 /// rustotcp::init().unwrap();
 /// let eth0 = Device::new("eth0", None);
 /// let tun0 = Device::new("tun0", None);
 /// let addr_eth = Ipv4::from_string("192.168.1.1").unwrap();
 /// let addr_tun = Ipv4::from_string("10.0.0.0").unwrap();
-/// eth0.ipv4_link_add(addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
-/// tun0.ipv4_link_add(addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
+/// Ipv4Link::add(&eth0, addr_eth, Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
+/// Ipv4Link::add(&tun0, addr_tun, Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
 ///
 /// port_forward_add(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
 /// port_forward_del(addr_eth, 80, addr_tun, 8080, Protocol::Tcp).unwrap();
@@ -212,21 +212,20 @@ pub fn port_forward_del(pub_addr: Ipv4, pub_port: u16, priv_addr: Ipv4, priv_por
 /// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
 ///
 /// let eth0 = Device::new("eth0", None);
-/// eth0.ipv4_link_add(addr, netmask).unwrap();
-/// let link = Ipv4Link::get(addr).unwrap();
+/// let link = Ipv4Link::add(&eth0, addr, netmask).unwrap();
 ///
 /// // Add a route for the network
-/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+/// route_add(addr, netmask, None, 10, Some(&link)).unwrap();
 /// ```
-pub fn route_add(address: Ipv4, netmask: Ipv4, gateway: Option<Ipv4>, metric: i32, link: Option<Ipv4Link>) -> Result<(), PicoError> {
+pub fn route_add(address: Ipv4, netmask: Ipv4, gateway: Option<Ipv4>, metric: i32, link: Option<&Ipv4Link>) -> Result<(), PicoError> {
     if gateway.is_none() && link.is_none() {
         return Err(PicoError::InvalidArgument);
     }
 
     let gateway = gateway.unwrap_or(Ipv4(0));
-    let link: *mut pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
+    let link: *const pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
 
-    match get_res(unsafe { pico_ipv4_route_add(address.into(), netmask.into(), gateway.into(), metric, link) }) {
+    match get_res(unsafe { pico_ipv4_route_add(address.into(), netmask.into(), gateway.into(), metric, link as *mut _) }) { // TODO: do not cast *const to *mut
         Ok(_) => Ok(()),
         Err(e @ PicoError::NotEnoughMemory) |
         Err(e @ PicoError::HostIsUnreachable) |
@@ -251,28 +250,27 @@ pub fn route_add(address: Ipv4, netmask: Ipv4, gateway: Option<Ipv4>, metric: i3
 /// let outside_gateway = Ipv4::from_string("10.0.0.0").unwrap();
 ///
 /// let eth0 = Device::new("eth0", None);
-/// eth0.ipv4_link_add(addr, netmask).unwrap();
-/// let link = Ipv4Link::get(addr).unwrap();
+/// let link = Ipv4Link::add(&eth0, addr, netmask).unwrap();
 ///
 /// // Add a route for the network
-/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+/// route_add(addr, netmask, None, 10, Some(&link)).unwrap();
 ///
 /// // Cannot add a route using a gateway with not route to it
 /// assert_eq!(default_route_add(Some(outside_gateway), 10, None), Err(PicoError::HostIsUnreachable));
 ///
 /// // Add a default route, via the gateway
-/// default_route_add(Some(gateway), 10, Some(link)).unwrap();
+/// default_route_add(Some(gateway), 10, Some(&link)).unwrap();
 /// ```
-pub fn default_route_add(gateway: Option<Ipv4>, metric: i32, link: Option<Ipv4Link>) -> Result<(), PicoError> {
+pub fn default_route_add(gateway: Option<Ipv4>, metric: i32, link: Option<&Ipv4Link>) -> Result<(), PicoError> {
     if gateway.is_none() && link.is_none() {
         return Err(PicoError::InvalidArgument);
     }
 
     let zero_addr = pico_ip4 { addr: 0 };
     let gateway = gateway.unwrap_or(Ipv4(0));
-    let link: *mut pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
+    let link: *const pico_ipv4_link = link.map(|l| l.into()).unwrap_or(ptr::null_mut());
 
-    match get_res(unsafe { pico_ipv4_route_add(zero_addr, zero_addr, gateway.into(), metric, link) }) {
+    match get_res(unsafe { pico_ipv4_route_add(zero_addr, zero_addr, gateway.into(), metric, link as *mut _) }) { // TODO: do not cast *const to *mut
         Ok(_) => Ok(()),
         Err(e @ PicoError::NotEnoughMemory) |
         Err(e @ PicoError::HostIsUnreachable) |
@@ -293,11 +291,10 @@ pub fn default_route_add(gateway: Option<Ipv4>, metric: i32, link: Option<Ipv4Li
 /// let netmask = Ipv4::from_string("255.255.255.0").unwrap();
 ///
 /// let eth0 = Device::new("eth0", None);
-/// eth0.ipv4_link_add(addr, netmask).unwrap();
-/// let link = Ipv4Link::get(addr).unwrap();
+/// let link = Ipv4Link::add(&eth0, addr, netmask).unwrap();
 ///
 /// // Add a route for the network
-/// route_add(addr, netmask, None, 10, Some(link)).unwrap();
+/// route_add(addr, netmask, None, 10, Some(&link)).unwrap();
 ///
 /// // Delete it
 /// route_del(addr, netmask, 10);
@@ -324,18 +321,17 @@ pub fn route_del(address: Ipv4, netmask: Ipv4, metric: i32) {
 /// let gateway = Ipv4::from_string("192.168.1.1").unwrap();
 ///
 /// let eth0 = Device::new("eth0", None);
-/// eth0.ipv4_link_add(addr, netmask).unwrap();
-/// let link = Ipv4Link::get(addr).unwrap();
+/// let link = Ipv4Link::add(&eth0, addr, netmask).unwrap();
 ///
 /// // Add a route for the network
-/// route_add(addr, netmask, Some(gateway), 10, Some(link)).unwrap();
+/// route_add(addr, netmask, Some(gateway), 10, Some(&link)).unwrap();
 ///
 /// assert_eq!(route_get_gateway(addr), Ok(None));
 /// assert_eq!(route_get_gateway(other_addr), Ok(None));
 /// assert_eq!(route_get_gateway(outside_addr), Err(PicoError::HostIsUnreachable));
 ///
 /// // Add a default route, via the gateway
-/// default_route_add(Some(gateway), 10, Some(link)).unwrap();
+/// default_route_add(Some(gateway), 10, Some(&link)).unwrap();
 ///
 /// assert_eq!(route_get_gateway(outside_addr), Ok(Some(gateway)));
 /// ```

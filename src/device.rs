@@ -3,16 +3,20 @@ use std::ffi::{CStr, CString};
 
 use picotcp_sys::pico_device;
 use picotcp_sys::pico_device_init;
-use picotcp_sys::pico_ipv4_link_add;
-use picotcp_sys::pico_ipv4_link_del;
 use picotcp_sys::pico_ipv4_link_find;
 use picotcp_sys::PICO_SIZE_ETH;
 
 use error::{PicoError, get_res, get_res_ptr};
 use ipv4::Ipv4;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Device(*mut pico_device); // The pico_device is owned by the pico stack
+
+impl<'dev> Into<*const pico_device> for &'dev Device {
+    fn into(self) -> *const pico_device {
+        self.0
+    }
+}
 
 impl Device {
     /// Returns the name of the device.
@@ -45,75 +49,30 @@ impl Device {
         }
     }
 
-    /// `pico_ipv4_link_add`
-    ///
-    /// ```
-    /// # use rustotcp::Device;
-    /// use rustotcp::Ipv4;
-    /// rustotcp::init().unwrap();
-    /// let eth0 = Device::new("eth0", None);
-    /// assert_eq!(eth0.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()), Ok(()));
-    /// ```
-    pub fn ipv4_link_add(&self, ip4: Ipv4, netmask: Ipv4) -> Result<(), PicoError> {
-        println!("{:?}", self.name());
-        match get_res(unsafe { pico_ipv4_link_add(self.0, ip4.into(), netmask.into()) }) {
-            Ok(_) => Ok(()),
-            Err(e @ PicoError::NotEnoughMemory) |
-            Err(e @ PicoError::NetworkUnreachable) |
-            Err(e @ PicoError::HostIsUnreachable) => Err(e),
-            Err(res) => panic!(format!("Unexpected error from pico_ipv4_link_add: {:?}", res)),
-        }
-    }
-
-    /// `pico_ipv4_link_del`
-    ///
-    /// ```
-    /// # use rustotcp::Device;
-    /// use rustotcp::Ipv4;
-    /// rustotcp::init().unwrap();
-    /// let mut dev = Device::new("eth0", None);
-    /// dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
-    /// assert_eq!(dev.ipv4_link_del(Ipv4::from_string("192.168.1.1").unwrap()), Ok(()));
-    /// ```
-    ///
-    /// ```
-    /// # use rustotcp::Device;
-    /// use rustotcp::PicoError;
-    /// use rustotcp::Ipv4;
-    /// rustotcp::init().unwrap();
-    /// let mut dev = Device::new("eth0", None);
-    /// dev.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
-    /// assert_eq!(dev.ipv4_link_del(Ipv4::from_string("192.168.2.1").unwrap()), Err(PicoError::NoSuchDeviceOrAddress));
-    /// ```
-    pub fn ipv4_link_del(&mut self, ip4: Ipv4) -> Result<(), PicoError> {
-        match get_res(unsafe { pico_ipv4_link_del(self.0, ip4.into()) }) {
-            Ok(_) => Ok(()),
-            Err(PicoError::NoSuchDeviceOrAddress) => Err(PicoError::NoSuchDeviceOrAddress),
-            Err(res) => panic!(format!("Unexpected error from pico_ipv4_link_add: {:?}", res)),
-        }
-    }
 
     /// `pico_ipv4_link_find`
+    ///
+    /// TODO: return a reference
     ///
     /// Returns the `Device` corresponding to the given IPv4 address.
     ///
     /// ```
     /// # use rustotcp::Device;
-    /// use rustotcp::Ipv4;
+    /// use rustotcp::{Ipv4, Ipv4Link};
     /// rustotcp::init().unwrap();
     /// let eth0 = Device::new("eth0", None);
     /// let tun0 = Device::new("tun0", None);
-    /// eth0.ipv4_link_add(Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
-    /// tun0.ipv4_link_add(Ipv4::from_string("10.0.0.0").unwrap(), Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
-    /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("192.168.1.1").unwrap()).map(|dev| dev.name()), Some("eth0".to_owned()));
-    /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("10.0.0.0").unwrap()).map(|dev| dev.name()), Some("tun0".to_owned()));
-    /// assert_eq!(Device::ipv4_link_find(Ipv4::from_string("127.0.0.1").unwrap()).map(|dev| dev.name()), None);
+    /// let link1 = Ipv4Link::add(&eth0, Ipv4::from_string("192.168.1.1").unwrap(), Ipv4::from_string("255.255.255.0").unwrap()).unwrap();
+    /// let link2 = Ipv4Link::add(&tun0, Ipv4::from_string("10.0.0.0").unwrap(), Ipv4::from_string("255.0.0.0").unwrap()).unwrap();
+    /// assert_eq!(unsafe { Device::ipv4_link_find(Ipv4::from_string("192.168.1.1").unwrap()).map(|dev| dev.name()) }, Some("eth0".to_owned()));
+    /// assert_eq!(unsafe { Device::ipv4_link_find(Ipv4::from_string("10.0.0.0").unwrap()).map(|dev| dev.name()) }, Some("tun0".to_owned()));
+    /// assert_eq!(unsafe { Device::ipv4_link_find(Ipv4::from_string("127.0.0.1").unwrap()).map(|dev| dev.name()) }, None);
     /// ```
-    pub fn ipv4_link_find(ip4: Ipv4) -> Option<Device> {
-        match get_res_ptr(unsafe { pico_ipv4_link_find(&mut ip4.into()) }) {
+    pub unsafe fn ipv4_link_find(ip4: Ipv4) -> Option<Device> {
+        match get_res_ptr(pico_ipv4_link_find(&mut ip4.into())) {
             Ok(dev) => Some(Device(dev)),
             Err(PicoError::NoSuchDeviceOrAddress) => None,
-            Err(res) => panic!(format!("Unexpected error from pico_ipv4_link_add: {:?}", res)),
+            Err(res) => panic!(format!("Unexpected error from pico_ipv4_link_find: {:?}", res)),
         }
     }
 }
